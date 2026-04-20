@@ -137,7 +137,7 @@ export default function Home() {
                     <YAxis domain={[0, 100]} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#1f2937", border: "none" }}
-                      formatter={(value: number) => value.toFixed(1)}
+                      formatter={(value) => (typeof value === 'number' ? value.toFixed(1) : value)}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="stated_confidence_score" stroke="#60a5fa" name="Stated Confidence" dot={false} />
