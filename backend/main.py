@@ -3,11 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import get_institutions, get_ici_scores
 from ingestion.sec_edgar import fetch_sec_filings
 from ingestion.google_trends import fetch_google_trends
+from ingestion.earnings import fetch_earnings_transcripts
+from ingestion.news_rss import fetch_news_sentiment
 from nlp.hedging import compute_stated_confidence
 from nlp.sentiment import compute_behavioral_trust
 from nlp.divergence import compute_and_store_ici
+from scheduler import start_scheduler
 
 app = FastAPI(title="Institutional Confidence Index API")
+
+@app.on_event("startup")
+async def startup_event():
+    import os
+    if os.environ.get("RUN_MAIN") != "true":
+        start_scheduler()
+        print("Scheduler: Started successfully")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,7 +54,13 @@ def run_pipeline(institution_id: int):
     
     # Step 2: Fetch Google Trends
     fetch_google_trends(name, institution_id)
+
+     # Step 3: Fetch News RSS
+    fetch_news_sentiment(name, institution_id)
     
+    # Step 4: Fetch Earnings Transcripts
+    fetch_earnings_transcripts(name, institution_id)
+
     # Step 3: Get raw signals from DB and compute scores
     from database import supabase
     signals = supabase.table("raw_signals")\
@@ -53,8 +69,7 @@ def run_pipeline(institution_id: int):
         .execute().data
     
     sec_signals = [s for s in signals if s["source"] == "sec_edgar"]
-    behavioral_signals = [s for s in signals if s["source"] == "google_trends"]
-    
+    behavioral_signals = [s for s in signals if s["source"] in ["google_trends", "news_rss", "earnings"]]
     # Compute SCS from SEC filings
     sec_text = " ".join([s["content"] for s in sec_signals if s["content"]])
     scs = compute_stated_confidence(sec_text) if sec_text else 50.0

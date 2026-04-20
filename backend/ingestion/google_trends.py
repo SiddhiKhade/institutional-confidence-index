@@ -1,6 +1,7 @@
 from pytrends.request import TrendReq
 from database import insert_raw_signal
-
+import time
+time.sleep(2)
 pytrends = TrendReq(hl='en-US', tz=360)
 
 def fetch_google_trends(institution_name, institution_id):

@@ -1,7 +1,7 @@
 import requests
 from config import HF_API_KEY
 
-API_URL = "https://api-inference.huggingface.co/models/yiyanghkust/finbert-tone"
+API_URL = "https://router.huggingface.co/hf-inference/models/yiyanghkust/finbert-tone"
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 HEDGING_PHRASES = [
@@ -23,21 +23,34 @@ def count_hedging_phrases(text):
     return density
 
 def get_finbert_sentiment(text):
-    try:
-        payload = {"inputs": text[:512]}  # FinBERT max 512 tokens
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
-        result = response.json()
+    import time
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            payload = {"inputs": text[:512]}
+            response = requests.post(API_URL, headers=HEADERS, json=payload)
+            result = response.json()
 
-        if isinstance(result, list) and len(result) > 0:
-            scores = {item["label"]: item["score"] for item in result[0]}
-            # Positive = confident, Negative = not confident
-            confidence = scores.get("Positive", 0.5) - scores.get("Negative", 0.5)
-            return (confidence + 1) / 2  # Normalize to 0-1
-        return 0.5
+            # Model is loading - wait and retry
+            if isinstance(result, dict) and "error" in result and "loading" in result.get("error", "").lower():
+                wait_time = result.get("estimated_time", 20)
+                print(f"FinBERT loading, waiting {wait_time}s... (attempt {attempt + 1})")
+                time.sleep(wait_time)
+                continue
 
-    except Exception as e:
-        print(f"FinBERT Error: {e}")
-        return 0.5
+            if isinstance(result, list) and len(result) > 0:
+                scores = {item["label"]: item["score"] for item in result[0]}
+                confidence = scores.get("Positive", 0.5) - scores.get("Negative", 0.5)
+                return (confidence + 1) / 2
+
+            return 0.5
+
+        except Exception as e:
+            print(f"FinBERT Error (attempt {attempt + 1}): {e}")
+            time.sleep(5)
+    
+    return 0.5
 
 def compute_stated_confidence(text):
     hedging_density = count_hedging_phrases(text)

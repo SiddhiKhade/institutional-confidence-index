@@ -20,7 +20,11 @@ def fetch_sec_filings(institution_name, institution_id):
         
         for hit in hits[:5]:  # Process top 5 filings
             source_data = hit.get("_source", {})
-            content = source_data.get("period_of_report", "") + " " + source_data.get("display_names", "")
+            period = source_data.get("period_of_report", "") or ""
+            names = source_data.get("display_names", "") or ""
+            if isinstance(names, list):
+                names = " ".join(names)
+            content = f"{period} {names}"
             
             if content.strip():
                 sentiment = analyzer.polarity_scores(content)
