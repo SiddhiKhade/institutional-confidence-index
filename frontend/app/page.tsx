@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://institutional-confidence-index.onrender.com";
 
 interface Institution {
   id: number;
