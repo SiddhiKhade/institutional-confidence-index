@@ -54,3 +54,21 @@ def get_ici_scores(institution_id):
         .limit(30)\
         .execute()
     return response.data
+
+def insert_alert(institution_id, zscore, divergence, scs, bts):
+    supabase.table("alert_history").insert({
+        "institution_id": institution_id,
+        "zscore": zscore,
+        "divergence_score": divergence,
+        "stated_confidence_score": scs,
+        "behavioral_trust_score": bts,
+    }).execute()
+
+def get_alert_history(institution_id):
+    response = supabase.table("alert_history")\
+        .select("*")\
+        .eq("institution_id", institution_id)\
+        .order("created_at", desc=True)\
+        .limit(20)\
+        .execute()
+    return response.data
