@@ -194,28 +194,28 @@ export default function Dashboard() {
     <main className="min-h-screen bg-gray-950 text-white">
 
       {/* NAV */}
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-8 h-14 bg-gray-950/80 backdrop-blur border-b border-white/5">
+      <nav className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-8 h-14 bg-gray-950/80 backdrop-blur border-b border-white/5">
         <Link href="/landing" className="text-sm font-medium text-white tracking-wide">
           ICI <span className="text-blue-400">·</span> Institutional Confidence Index
         </Link>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setCompareMode(m => !m)} className={`text-sm px-3 py-1.5 rounded-lg border transition-all ${compareMode ? "bg-blue-600/20 border-blue-500/50 text-blue-300" : "border-white/10 text-gray-400 hover:text-white"}`}>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={() => setCompareMode(m => !m)} className={`text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-lg border transition-all ${compareMode ? "bg-blue-600/20 border-blue-500/50 text-blue-300" : "border-white/10 text-gray-400 hover:text-white"}`}>
             {compareMode ? "Exit compare" : "Compare"}
           </button>
-          <button onClick={() => setExplainerOpen(o => !o)} className="text-sm text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => setExplainerOpen(o => !o)} className="hidden sm:block text-sm text-gray-400 hover:text-white transition-colors">
             Score guide
           </button>
-          <button onClick={() => { setAddOpen(true); setAddError(""); }} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+          <button onClick={() => { setAddOpen(true); setAddError(""); }} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all">
             + Track new org
           </button>
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-8 py-8">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
         {/* SCORE EXPLAINER */}
         {explainerOpen && (
-          <div className="mb-8 bg-gray-900 border border-white/10 rounded-2xl p-6">
+          <div className="mb-6 sm:mb-8 bg-gray-900 border border-white/10 rounded-2xl p-4 sm:p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold">What each score means</h2>
@@ -223,9 +223,9 @@ export default function Dashboard() {
               </div>
               <button onClick={() => setExplainerOpen(false)} className="text-gray-500 hover:text-white text-sm">Close ✕</button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {SCORE_META.map(s => (
-                <div key={s.key} className={`bg-gray-800/60 border border-white/10 rounded-xl p-4 border-t-2 ${s.topBar}`}>
+                <div key={s.key} className={`bg-gray-800/60 border border-white/10 rounded-xl p-3 sm:p-4 border-t-2 ${s.topBar}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{s.label}</span>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-md bg-white/10 ${s.color}`}>{s.abbr}</span>
@@ -243,13 +243,13 @@ export default function Dashboard() {
         )}
 
         {/* INSTITUTION PILLS */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           {compareMode && (
             <div className="mb-3 px-3 py-2 bg-blue-600/10 border border-blue-500/30 rounded-lg text-xs text-blue-300">
               Compare mode: select a second institution to overlay on the chart.
             </div>
           )}
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Tracked institutions</p>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-2 mt-2">Tracked institutions</p>
           <div className="flex flex-wrap gap-2 mb-4">
             {builtIn.map(inst => (
               <button key={inst.id}
@@ -299,17 +299,17 @@ export default function Dashboard() {
         </div>
 
         {selected && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
 
             {/* LEFT — main panel */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
 
               {/* SCORE CARD */}
               <div className={`rounded-2xl p-6 ${isAlert ? "bg-red-900/20 border border-red-500/50" : "bg-gray-900 border border-white/5"}`}>
-                <div className="flex justify-between items-start mb-6">
+                <div className="flex justify-between items-start mb-4 sm:mb-6 gap-2">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-2xl font-semibold">{selected.name}</h2>
+                      <h2 className="text-xl sm:text-2xl font-semibold">{selected.name}</h2>
                       {compareInst && <span className="text-sm text-gray-500">vs <span className="text-purple-400">{compareInst.name}</span></span>}
                       {selected.is_custom && <span className="text-xs bg-gray-800 text-gray-400 border border-gray-700 px-2 py-0.5 rounded-full">Custom</span>}
                     </div>
@@ -326,21 +326,21 @@ export default function Dashboard() {
                     )}
                   </div>
                   <button onClick={runPipeline} disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-medium transition-all shrink-0">
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all shrink-0">
                     {loading ? "Running..." : "Run pipeline"}
                   </button>
                 </div>
 
                 {latest ? (
                   <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
                       {[
                         { label:"Stated Confidence", value:latest.stated_confidence_score, cls:"text-blue-400" },
                         { label:"Behavioral Trust",  value:latest.behavioral_trust_score,  cls:"text-green-400" },
                         { label:"Divergence",        value:latest.divergence_score,        cls:latest.divergence_score > 0 ? "text-red-400" : "text-green-400", prefix:latest.divergence_score > 0 ? "+" : "" },
                         { label:"Z-Score",           value:latest.zscore,                  cls:isAlert ? "text-red-400" : "text-gray-200", decimals:2 },
                       ].map(m => (
-                        <div key={m.label} className="bg-gray-800/60 rounded-xl p-4">
+                        <div key={m.label} className="bg-gray-800/60 rounded-xl p-3 sm:p-4">
                           <p className="text-xs text-gray-400 mb-1">{m.label}</p>
                           <p className={`text-2xl font-semibold ${m.cls}`}>{m.prefix ?? ""}{m.value.toFixed(m.decimals ?? 1)}</p>
                         </div>
@@ -368,11 +368,11 @@ export default function Dashboard() {
 
               {/* CHART */}
               {scores.length > 1 && (
-                <div className="bg-gray-900 border border-white/5 rounded-2xl p-6">
+                <div className="bg-gray-900 border border-white/5 rounded-2xl p-4 sm:p-6">
                   <h3 className="text-sm font-medium mb-4 text-gray-300">
                     {compareMode && compareInst ? `${selected.name} vs ${compareInst.name} — divergence & trust` : "ICI score history"}
                   </h3>
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={220}>
                     {compareMode && compareInst ? (
                       <LineChart data={mergedScores}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -403,16 +403,16 @@ export default function Dashboard() {
 
               {/* SECTOR AGGREGATION */}
               {sectors.length > 0 && (
-                <div className="bg-gray-900 border border-white/5 rounded-2xl p-6">
+                <div className="bg-gray-900 border border-white/5 rounded-2xl p-4 sm:p-6">
                   <h3 className="text-sm font-medium text-gray-300 mb-4">Sector overview</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {sectors.map(sec => (
-                      <div key={sec.sector} className={`flex items-center gap-4 p-3 rounded-xl border ${sec.alert ? "border-red-500/30 bg-red-500/5" : "border-white/5 bg-white/2"}`}>
+                      <div key={sec.sector} className={`flex items-center gap-2 sm:gap-4 p-2 sm:p-3 rounded-xl border ${sec.alert ? "border-red-500/30 bg-red-500/5" : "border-white/5 bg-white/2"}`}>
                         <div className="w-28 shrink-0">
                           <p className="text-sm font-medium text-white">{sec.sector}</p>
                           <p className="text-xs text-gray-500">{sec.institution_count} institution{sec.institution_count > 1 ? "s" : ""}</p>
                         </div>
-                        <div className="flex gap-4 flex-1">
+                        <div className="flex gap-2 sm:gap-4 flex-1 flex-wrap">
                           {[
                             { label:"Avg SCS", value:sec.avg_scs,       cls:"text-blue-400" },
                             { label:"Avg BTS", value:sec.avg_bts,       cls:"text-green-400" },
@@ -434,7 +434,7 @@ export default function Dashboard() {
             </div>
 
             {/* RIGHT — tabbed panel */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-20">
               <div className="bg-gray-900 border border-white/5 rounded-2xl overflow-hidden">
                 {/* Tabs */}
                 <div className="flex border-b border-white/5">
@@ -528,7 +528,7 @@ export default function Dashboard() {
                     { abbr:"DIV", label:"Divergence",        color:"text-red-400",    desc:"SCS − BTS gap" },
                     { abbr:"Z",   label:"Z-Score",           color:"text-purple-400", desc:"Unusual vs own history?" },
                   ].map(s => (
-                    <div key={s.abbr} className="flex items-center gap-3">
+                    <div key={s.abbr} className="flex items-center gap-2 sm:gap-3">
                       <span className={`text-xs font-semibold w-8 shrink-0 ${s.color}`}>{s.abbr}</span>
                       <div>
                         <p className="text-xs font-medium text-gray-300">{s.label}</p>
@@ -545,8 +545,8 @@ export default function Dashboard() {
 
       {/* ADD MODAL */}
       {addOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 sm:p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-lg font-semibold mb-1">Track a new institution</h2>
             <p className="text-sm text-gray-400 mb-5 leading-relaxed">Enter any organisation — the pipeline runs immediately and generates a first ICI score.</p>
             <label className="block text-xs text-gray-400 mb-1">Organisation name</label>
