@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from database import get_institutions, get_ici_scores, insert_institution, delete_institution
+from database import get_institutions, get_ici_scores, insert_institution, delete_institution, get_alert_history
 from ingestion.sec_edgar import fetch_sec_filings
 from ingestion.google_trends import fetch_google_trends
 from ingestion.earnings import fetch_earnings_transcripts
@@ -60,10 +60,69 @@ def remove_institution(institution_id: int):
     delete_institution(institution_id)
     return {"deleted": True, "institution_id": institution_id}
 
+@app.get("/signals/{institution_id}")
+def get_signals(institution_id: int):
+    """Return recent raw signals for an institution — feeds the news feed on the dashboard."""
+    from database import supabase
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    data = supabase.table("raw_signals")        .select("source, content, sentiment_score, created_at")        .eq("institution_id", institution_id)        .gte("created_at", cutoff)        .order("created_at", desc=True)        .limit(10)        .execute().data
+    return data
+
+@app.get("/latest")
+def get_latest_scores():
+    """Return the single most recent ICI score for every institution."""
+    from database import supabase
+    institutions = get_institutions()
+    results = []
+    for inst in institutions:
+        scores = supabase.table("ici_scores")            .select("*")            .eq("institution_id", inst["id"])            .order("created_at", desc=True)            .limit(1)            .execute().data
+        if scores:
+            results.append({**inst, **scores[0]})
+    return results
+
 @app.get("/ici/{institution_id}")
 def get_ici(institution_id: int):
     scores = get_ici_scores(institution_id)
     return scores
+
+
+@app.get("/alerts/{institution_id}")
+def get_alerts(institution_id: int):
+    """Return alert history for an institution — Z-score crossings above |2|."""
+    return get_alert_history(institution_id)
+
+@app.get("/sectors")
+def get_sector_summary():
+    """Return average ICI scores grouped by sector."""
+    from database import supabase
+    institutions = get_institutions()
+    sector_map: dict = {}
+    for inst in institutions:
+        sector = inst["sector"] or "Other"
+        scores = supabase.table("ici_scores")            .select("stated_confidence_score,behavioral_trust_score,divergence_score,zscore")            .eq("institution_id", inst["id"])            .order("created_at", desc=True)            .limit(1)            .execute().data
+        if not scores:
+            continue
+        s = scores[0]
+        if sector not in sector_map:
+            sector_map[sector] = {"sector": sector, "institutions": [], "scores": []}
+        sector_map[sector]["institutions"].append(inst["name"])
+        sector_map[sector]["scores"].append(s)
+
+    result = []
+    for sector, data in sector_map.items():
+        ss = data["scores"]
+        result.append({
+            "sector": sector,
+            "institution_count": len(ss),
+            "institutions": data["institutions"],
+            "avg_scs":       round(sum(x["stated_confidence_score"] for x in ss) / len(ss), 2),
+            "avg_bts":       round(sum(x["behavioral_trust_score"]  for x in ss) / len(ss), 2),
+            "avg_divergence":round(sum(x["divergence_score"]        for x in ss) / len(ss), 2),
+            "avg_zscore":    round(sum(x["zscore"]                  for x in ss) / len(ss), 3),
+            "alert":         any(abs(x["zscore"]) > 2 for x in ss),
+        })
+    return sorted(result, key=lambda x: abs(x["avg_divergence"]), reverse=True)
 
 @app.post("/run/{institution_id}")
 def run_pipeline(institution_id: int):
@@ -81,9 +140,14 @@ def run_pipeline(institution_id: int):
     fetch_earnings_transcripts(name, institution_id)
 
     from database import supabase
+    from datetime import datetime, timedelta, timezone
+
+    # Only use signals from the last 30 days — prevents stale data diluting current scores
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     signals = supabase.table("raw_signals")\
         .select("*")\
         .eq("institution_id", institution_id)\
+        .gte("created_at", cutoff)\
         .execute().data
 
     sec_signals = [s for s in signals if s["source"] == "sec_edgar"]
