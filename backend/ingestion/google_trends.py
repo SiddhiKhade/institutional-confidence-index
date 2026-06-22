@@ -1,6 +1,7 @@
 from pytrends.request import TrendReq
 from database import insert_raw_signal
 import time
+
 time.sleep(2)
 pytrends = TrendReq(hl='en-US', tz=360)
 
@@ -12,34 +13,49 @@ def fetch_google_trends(institution_name, institution_id):
             f"{institution_name} lawsuit"
         ]
 
-        pytrends.build_payload(
-            keywords[:1],  # Use one keyword at a time to avoid rate limits
-            cat=0,
-            timeframe='today 3-m',
-            geo='US'
-        )
+        trust_scores = []
 
-        data = pytrends.interest_over_time()
+        # FIX: query all 3 keywords individually to avoid rate limits, average results
+        for keyword in keywords:
+            try:
+                pytrends.build_payload(
+                    [keyword],
+                    cat=0,
+                    timeframe='today 3-m',
+                    geo='US'
+                )
+                data = pytrends.interest_over_time()
 
-        if data.empty:
-            print(f"Google Trends: No data for {institution_name}")
+                if not data.empty:
+                    avg_interest = data.iloc[:, 0].mean()
+                    # Higher search interest for negative terms = lower trust
+                    trust_score = 1 - (avg_interest / 100)
+                    trust_scores.append((keyword, avg_interest, trust_score))
+                    print(f"Google Trends: '{keyword}' interest={avg_interest:.1f}, trust={trust_score:.2f}")
+
+                time.sleep(3)  # Respect rate limits between keyword calls
+
+            except Exception as e:
+                print(f"Google Trends: Failed for keyword '{keyword}': {e}")
+                time.sleep(5)
+                continue
+
+        if not trust_scores:
+            print(f"Google Trends: No data returned for {institution_name}")
             return False
 
-        # Average interest score over the period (0-100)
-        avg_interest = data.iloc[:, 0].mean()
-
-        # Higher search interest = lower trust signal
-        # Normalize: 100 interest = 0 trust, 0 interest = 1 trust
-        trust_score = 1 - (avg_interest / 100)
+        # Store one aggregated signal — average across all keywords that returned data
+        avg_trust = sum(t[2] for t in trust_scores) / len(trust_scores)
+        summary = " | ".join([f"'{k}': {i:.1f}" for k, i, _ in trust_scores])
 
         insert_raw_signal(
             institution_id=institution_id,
             source="google_trends",
-            content=f"Avg search interest for '{keywords[0]}': {avg_interest:.2f}",
-            sentiment_score=trust_score
+            content=f"Search interest ({institution_name}): {summary}",
+            sentiment_score=avg_trust
         )
 
-        print(f"Google Trends: Processed {institution_name} - interest: {avg_interest:.2f}")
+        print(f"Google Trends: {institution_name} — avg trust score: {avg_trust:.2f} across {len(trust_scores)} keywords")
         return True
 
     except Exception as e:
