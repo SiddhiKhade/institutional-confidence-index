@@ -378,7 +378,7 @@ export default function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                         <XAxis dataKey="created_at" tickFormatter={v => new Date(v).toLocaleDateString("en-US",{month:"short",day:"numeric"})} tick={{fill:"#6b7280",fontSize:11}} interval="preserveStartEnd" />
                         <YAxis domain={[0,100]} tick={{fill:"#6b7280",fontSize:11}} />
-                        <Tooltip contentStyle={{backgroundColor:"#111827",border:"1px solid #374151",borderRadius:"8px",fontSize:"12px"}} labelFormatter={v => new Date(v).toLocaleString()} formatter={(v: unknown) => (typeof v === "number" ? v.toFixed(1) : v)} />
+                        <Tooltip contentStyle={{backgroundColor:"#111827",border:"1px solid #374151",borderRadius:"8px",fontSize:"12px"}} labelFormatter={v => new Date(v).toLocaleString()} formatter={(v: number | string) => (typeof v === "number" ? v.toFixed(1) : String(v))} />
                         <Legend wrapperStyle={{fontSize:"12px",color:"#9ca3af"}} />
                         <Line type="monotone" dataKey={`${selected.name}_bts`}    stroke="#60a5fa" name={`${selected.name} BTS`}    dot={false} strokeWidth={2} />
                         <Line type="monotone" dataKey={`${selected.name}_div`}    stroke="#f87171" name={`${selected.name} Div`}    dot={false} strokeWidth={2} />
@@ -390,7 +390,7 @@ export default function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                         <XAxis dataKey="created_at" tickFormatter={v => new Date(v).toLocaleDateString("en-US",{month:"short",day:"numeric"})} tick={{fill:"#6b7280",fontSize:11}} interval="preserveStartEnd" />
                         <YAxis domain={[0,100]} tick={{fill:"#6b7280",fontSize:11}} />
-                        <Tooltip contentStyle={{backgroundColor:"#111827",border:"1px solid #374151",borderRadius:"8px",fontSize:"12px"}} labelFormatter={v => new Date(v).toLocaleString()} formatter={(v: unknown) => (typeof v === "number" ? v.toFixed(1) : v)} />
+                        <Tooltip contentStyle={{backgroundColor:"#111827",border:"1px solid #374151",borderRadius:"8px",fontSize:"12px"}} labelFormatter={v => new Date(v).toLocaleString()} formatter={(v: number | string) => (typeof v === "number" ? v.toFixed(1) : String(v))} />
                         <Legend wrapperStyle={{fontSize:"12px",color:"#9ca3af"}} />
                         <Line type="monotone" dataKey="stated_confidence_score" stroke="#60a5fa" name="Stated Confidence" dot={false} strokeWidth={2} />
                         <Line type="monotone" dataKey="behavioral_trust_score"  stroke="#34d399" name="Behavioral Trust"  dot={false} strokeWidth={2} />
