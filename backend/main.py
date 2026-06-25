@@ -174,6 +174,14 @@ def run_pipeline(institution_id: int):
     behavioral_signals = [s for s in signals if s["source"] in ["google_trends", "news_rss", "earnings"]]
 
     sec_text = " ".join([s["content"] for s in sec_signals if s["content"]])
+
+    # For non-filers (gov agencies, universities), SEC text is too sparse for VADER.
+    # Fall back to news RSS + earnings press releases as the stated confidence source.
+    if not sec_text or len(sec_text.strip()) < 100:
+        news_signals = [s for s in signals if s["source"] in ["news_rss", "earnings"]]
+        sec_text = " ".join([s["content"] for s in news_signals if s["content"]])
+        print(f"SCS: using news/earnings text as fallback for sparse SEC content ({len(sec_text)} chars)")
+
     scs = compute_stated_confidence(sec_text) if sec_text else 50.0
 
     bts = compute_behavioral_trust(behavioral_signals)
