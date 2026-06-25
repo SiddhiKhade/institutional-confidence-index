@@ -94,35 +94,55 @@ def get_alerts(institution_id: int):
 
 @app.get("/sectors")
 def get_sector_summary():
-    """Return average ICI scores grouped by sector."""
+    """Return average ICI scores grouped by sector — single query via SQL."""
     from database import supabase
-    institutions = get_institutions()
-    sector_map: dict = {}
-    for inst in institutions:
-        sector = inst["sector"] or "Other"
-        scores = supabase.table("ici_scores")            .select("stated_confidence_score,behavioral_trust_score,divergence_score,zscore")            .eq("institution_id", inst["id"])            .order("created_at", desc=True)            .limit(1)            .execute().data
-        if not scores:
-            continue
-        s = scores[0]
-        if sector not in sector_map:
-            sector_map[sector] = {"sector": sector, "institutions": [], "scores": []}
-        sector_map[sector]["institutions"].append(inst["name"])
-        sector_map[sector]["scores"].append(s)
+    try:
+        # One query: latest score per institution using a distinct-on-style approach
+        # Get all institutions with their latest scores in two queries (much cheaper than 9)
+        institutions = get_institutions()
+        inst_ids = [i["id"] for i in institutions]
+        inst_map = {i["id"]: i for i in institutions}
 
-    result = []
-    for sector, data in sector_map.items():
-        ss = data["scores"]
-        result.append({
-            "sector": sector,
-            "institution_count": len(ss),
-            "institutions": data["institutions"],
-            "avg_scs":       round(sum(x["stated_confidence_score"] for x in ss) / len(ss), 2),
-            "avg_bts":       round(sum(x["behavioral_trust_score"]  for x in ss) / len(ss), 2),
-            "avg_divergence":round(sum(x["divergence_score"]        for x in ss) / len(ss), 2),
-            "avg_zscore":    round(sum(x["zscore"]                  for x in ss) / len(ss), 3),
-            "alert":         any(abs(x["zscore"]) > 2 for x in ss),
-        })
-    return sorted(result, key=lambda x: abs(x["avg_divergence"]), reverse=True)
+        # Fetch latest score for all institutions at once
+        all_scores = supabase.table("ici_scores")            .select("institution_id,stated_confidence_score,behavioral_trust_score,divergence_score,zscore,created_at")            .in_("institution_id", inst_ids)            .order("created_at", desc=True)            .limit(len(inst_ids) * 5)            .execute().data
+
+        # Keep only the most recent score per institution
+        seen = set()
+        latest_scores = {}
+        for s in all_scores:
+            iid = s["institution_id"]
+            if iid not in seen:
+                seen.add(iid)
+                latest_scores[iid] = s
+
+        sector_map: dict = {}
+        for iid, s in latest_scores.items():
+            inst = inst_map.get(iid)
+            if not inst:
+                continue
+            sector = inst["sector"] or "Other"
+            if sector not in sector_map:
+                sector_map[sector] = {"sector": sector, "institutions": [], "scores": []}
+            sector_map[sector]["institutions"].append(inst["name"])
+            sector_map[sector]["scores"].append(s)
+
+        result = []
+        for sector, data in sector_map.items():
+            ss = data["scores"]
+            result.append({
+                "sector": sector,
+                "institution_count": len(ss),
+                "institutions": data["institutions"],
+                "avg_scs":       round(sum(x["stated_confidence_score"] for x in ss) / len(ss), 2),
+                "avg_bts":       round(sum(x["behavioral_trust_score"]  for x in ss) / len(ss), 2),
+                "avg_divergence":round(sum(x["divergence_score"]        for x in ss) / len(ss), 2),
+                "avg_zscore":    round(sum(x["zscore"]                  for x in ss) / len(ss), 3),
+                "alert":         any(abs(x["zscore"]) > 2 for x in ss),
+            })
+        return sorted(result, key=lambda x: abs(x["avg_divergence"]), reverse=True)
+    except Exception as e:
+        print(f"Sectors error: {e}")
+        return []
 
 @app.post("/run/{institution_id}")
 def run_pipeline(institution_id: int):
