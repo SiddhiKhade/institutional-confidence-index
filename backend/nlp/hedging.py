@@ -1,7 +1,9 @@
 import requests
+import time
 from config import HF_API_KEY
 
-API_URL = "https://router.huggingface.co/hf-inference/models/yiyanghkust/finbert-tone"
+# Updated HuggingFace Inference API URL
+API_URL = "https://api-inference.huggingface.co/models/yiyanghkust/finbert-tone"
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 HEDGING_PHRASES = [
@@ -18,47 +20,66 @@ def count_hedging_phrases(text):
     text_lower = text.lower()
     count = sum(1 for phrase in HEDGING_PHRASES if phrase in text_lower)
     words = len(text.split())
-    # Hedging density per 1000 words
     density = (count / max(words, 1)) * 1000
     return density
 
 def get_finbert_sentiment(text):
-    import time
     max_retries = 3
-    
+
     for attempt in range(max_retries):
         try:
             payload = {"inputs": text[:512]}
-            response = requests.post(API_URL, headers=HEADERS, json=payload)
-            result = response.json()
+            response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=30)
 
-            # Model is loading - wait and retry
-            if isinstance(result, dict) and "error" in result and "loading" in result.get("error", "").lower():
-                wait_time = result.get("estimated_time", 20)
+            if response.status_code == 503:
+                # Model loading
+                wait_time = 20
+                try:
+                    wait_time = response.json().get("estimated_time", 20)
+                except Exception:
+                    pass
                 print(f"FinBERT loading, waiting {wait_time}s... (attempt {attempt + 1})")
                 time.sleep(wait_time)
                 continue
 
-            if isinstance(result, list) and len(result) > 0:
-                scores = {item["label"]: item["score"] for item in result[0]}
-                confidence = scores.get("Positive", 0.5) - scores.get("Negative", 0.5)
-                return (confidence + 1) / 2
+            if response.status_code != 200:
+                print(f"FinBERT HTTP {response.status_code}: {response.text[:200]}")
+                time.sleep(5)
+                continue
 
+            result = response.json()
+
+            # Handle both [[{...}]] and [{...}] response formats
+            if isinstance(result, list) and len(result) > 0:
+                inner = result[0]
+                # Unwrap nested list if needed
+                if isinstance(inner, list) and len(inner) > 0:
+                    inner = inner[0]
+                    scores = {item["label"]: item["score"] for item in result[0]}
+                else:
+                    scores = {item["label"]: item["score"] for item in result[0]}
+
+                positive = scores.get("Positive", 0.5)
+                negative = scores.get("Negative", 0.5)
+                confidence = positive - negative
+                normalized = (confidence + 1) / 2
+                print(f"FinBERT: Positive={positive:.3f}, Negative={negative:.3f}, SCS_raw={normalized:.3f}")
+                return normalized
+
+            print(f"FinBERT unexpected response format: {result}")
             return 0.5
 
         except Exception as e:
             print(f"FinBERT Error (attempt {attempt + 1}): {e}")
             time.sleep(5)
-    
+
+    print("FinBERT: All retries failed, using fallback 0.5")
     return 0.5
 
 def compute_stated_confidence(text):
     hedging_density = count_hedging_phrases(text)
     finbert_score = get_finbert_sentiment(text)
-
-    # High hedging = lower confidence
     hedging_penalty = min(hedging_density / 10, 0.5)
     scs = finbert_score - hedging_penalty
-
-    # Normalize to 0-100
+    print(f"SCS: finbert={finbert_score:.3f}, hedging_density={hedging_density:.2f}, penalty={hedging_penalty:.3f}, final={scs*100:.1f}")
     return max(0, min(100, scs * 100))
