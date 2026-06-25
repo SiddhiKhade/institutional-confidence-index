@@ -109,14 +109,18 @@ export default function Dashboard() {
   const [explainerOpen, setExplainerOpen] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [activeTab, setActiveTab]     = useState<"signals"|"alerts"|"sectors">("signals");
+  const [backendStatus, setBackendStatus] = useState<"loading"|"ok"|"error">("loading");
 
   const fetchInstitutions = () =>
-    axios.get(`${API_URL}/institutions`).then(r => { setInstitutions(r.data); return r.data as Institution[]; });
+    axios.get(`${API_URL}/institutions`, { timeout: 60000 })
+      .then(r => { setInstitutions(r.data); setBackendStatus("ok"); return r.data as Institution[]; })
+      .catch(() => { setBackendStatus("error"); return [] as Institution[]; });
 
   const fetchSectors = () =>
     axios.get(`${API_URL}/sectors`).then(r => setSectors(r.data)).catch(() => {});
 
   useEffect(() => {
+    setBackendStatus("loading");
     fetchInstitutions().then(d => { if (d.length) setSelected(d[0]); });
     fetchSectors();
   }, []);
@@ -239,6 +243,27 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* BACKEND STATUS */}
+        {backendStatus === "loading" && (
+          <div className="mb-6 flex items-center gap-3 bg-gray-900 border border-white/10 rounded-xl px-4 py-3">
+            <div className="w-4 h-4 rounded-full border-2 border-blue-500/40 border-t-blue-400 animate-spin shrink-0" />
+            <div>
+              <p className="text-sm text-gray-300 font-medium">Connecting to backend...</p>
+              <p className="text-xs text-gray-500 mt-0.5">Render may take up to 60 seconds to wake up on the free tier.</p>
+            </div>
+          </div>
+        )}
+        {backendStatus === "error" && (
+          <div className="mb-6 bg-red-900/20 border border-red-500/40 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-300 font-medium">⚠ Could not reach the backend</p>
+            <p className="text-xs text-red-400/70 mt-0.5">
+              The Render service may be down or still starting.{" "}
+              <button onClick={() => { setBackendStatus("loading"); fetchInstitutions().then(d => { if (d.length) setSelected(d[0]); }); }}
+                className="underline hover:text-red-300 transition-colors">Retry</button>
+            </p>
           </div>
         )}
 
