@@ -1,5 +1,10 @@
+import requests
 import time
 from config import HF_API_KEY
+
+# ProsusAI/finbert is the supported FinBERT model on HuggingFace Inference API
+# yiyanghkust/finbert-tone is not supported (missing model_type in config.json)
+API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
 
 HEDGING_PHRASES = [
     "subject to", "may differ", "cannot guarantee", "material uncertainty",
@@ -19,36 +24,63 @@ def count_hedging_phrases(text):
     return density
 
 def get_finbert_sentiment(text):
-    try:
-        from huggingface_hub import InferenceClient
-        client = InferenceClient(
-            provider="hf-inference",
-            api_key=HF_API_KEY,
-        )
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-        result = client.text_classification(
-            text[:512],
-            model="yiyanghkust/finbert-tone"
-        )
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                API_URL,
+                headers=headers,
+                json={"inputs": text[:512], "options": {"wait_for_model": True}},
+                timeout=60
+            )
 
-        # result is a list of ClassificationOutputElement with .label and .score
-        scores = {item.label: item.score for item in result}
-        positive = scores.get("Positive", 0.5)
-        negative = scores.get("Negative", 0.5)
-        confidence = positive - negative
-        normalized = (confidence + 1) / 2
-        print(f"FinBERT: Positive={positive:.3f}, Negative={negative:.3f}, SCS_raw={normalized:.3f}")
-        return normalized
+            print(f"FinBERT HTTP {response.status_code}")
 
-    except Exception as e:
-        print(f"FinBERT Error: {e}")
-        # Fallback: use hedging density only
-        return 0.5
+            if response.status_code == 200:
+                result = response.json()
+                print(f"FinBERT raw response: {result}")
+
+                # ProsusAI/finbert returns [[{label, score}, ...]]
+                if isinstance(result, list) and len(result) > 0:
+                    inner = result[0]
+                    if isinstance(inner, list):
+                        items = inner
+                    else:
+                        items = result
+
+                    # Labels are "positive", "negative", "neutral" (lowercase)
+                    scores = {item["label"].lower(): item["score"] for item in items if isinstance(item, dict)}
+                    positive = scores.get("positive", 0.5)
+                    negative = scores.get("negative", 0.5)
+                    confidence = positive - negative
+                    normalized = (confidence + 1) / 2
+                    print(f"FinBERT: positive={positive:.3f}, negative={negative:.3f}, SCS_raw={normalized:.3f}")
+                    return normalized
+
+            elif response.status_code == 503:
+                print(f"FinBERT model loading, waiting 20s... (attempt {attempt + 1})")
+                time.sleep(20)
+                continue
+
+            else:
+                print(f"FinBERT error {response.status_code}: {response.text[:300]}")
+                time.sleep(5)
+
+        except Exception as e:
+            print(f"FinBERT exception (attempt {attempt + 1}): {e}")
+            time.sleep(5)
+
+    print("FinBERT: all retries failed, returning fallback 0.5")
+    return 0.5
 
 def compute_stated_confidence(text):
     hedging_density = count_hedging_phrases(text)
     finbert_score = get_finbert_sentiment(text)
     hedging_penalty = min(hedging_density / 10, 0.5)
     scs = finbert_score - hedging_penalty
-    print(f"SCS: finbert={finbert_score:.3f}, hedging_density={hedging_density:.2f}, penalty={hedging_penalty:.3f}, final={scs*100:.1f}")
+    print(f"SCS: finbert={finbert_score:.3f}, hedging={hedging_density:.2f}, penalty={hedging_penalty:.3f}, final={scs*100:.1f}")
     return max(0, min(100, scs * 100))
