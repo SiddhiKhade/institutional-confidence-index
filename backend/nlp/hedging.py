@@ -1,10 +1,10 @@
-import requests
-import time
-from config import HF_API_KEY
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-# ProsusAI/finbert is the supported FinBERT model on HuggingFace Inference API
-# yiyanghkust/finbert-tone is not supported (missing model_type in config.json)
-API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
+# HuggingFace API is not reachable from Render (DNS resolution fails for api-inference.huggingface.co).
+# Using VADER + financial domain keywords instead — runs fully locally, no network calls.
+# VADER is already installed (vaderSentiment==3.3.2 in requirements.txt).
+
+analyzer = SentimentIntensityAnalyzer()
 
 HEDGING_PHRASES = [
     "subject to", "may differ", "cannot guarantee", "material uncertainty",
@@ -16,6 +16,18 @@ HEDGING_PHRASES = [
     "may be impacted", "subject to regulatory", "forward looking statements"
 ]
 
+POSITIVE_FINANCIAL = [
+    "strong", "record", "growth", "beat", "exceeded", "robust", "momentum",
+    "outperform", "confident", "positive", "improve", "gain", "increase",
+    "expand", "solid", "resilient", "deliver", "achieve", "excellent"
+]
+
+NEGATIVE_FINANCIAL = [
+    "loss", "decline", "miss", "below", "weak", "concern", "risk",
+    "challenge", "difficult", "uncertain", "volatile", "headwind",
+    "pressure", "deteriorat", "impair", "writedown", "restructur"
+]
+
 def count_hedging_phrases(text):
     text_lower = text.lower()
     count = sum(1 for phrase in HEDGING_PHRASES if phrase in text_lower)
@@ -23,64 +35,34 @@ def count_hedging_phrases(text):
     density = (count / max(words, 1)) * 1000
     return density
 
-def get_finbert_sentiment(text):
-    headers = {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Content-Type": "application/json"
-    }
+def get_financial_sentiment(text):
+    text_lower = text.lower()
+    words = text_lower.split()
+    total = len(words)
 
-    for attempt in range(3):
-        try:
-            response = requests.post(
-                API_URL,
-                headers=headers,
-                json={"inputs": text[:512], "options": {"wait_for_model": True}},
-                timeout=60
-            )
+    pos_count = sum(1 for kw in POSITIVE_FINANCIAL if kw in text_lower)
+    neg_count = sum(1 for kw in NEGATIVE_FINANCIAL if kw in text_lower)
 
-            print(f"FinBERT HTTP {response.status_code}")
+    chunk = " ".join(words[:1000])
+    vader_scores = analyzer.polarity_scores(chunk)
+    vader_compound = vader_scores["compound"]  # -1 to +1
 
-            if response.status_code == 200:
-                result = response.json()
-                print(f"FinBERT raw response: {result}")
+    domain_boost = (pos_count - neg_count) / max(total / 100, 1)
+    domain_boost = max(-0.5, min(0.5, domain_boost))
 
-                # ProsusAI/finbert returns [[{label, score}, ...]]
-                if isinstance(result, list) and len(result) > 0:
-                    inner = result[0]
-                    if isinstance(inner, list):
-                        items = inner
-                    else:
-                        items = result
-
-                    # Labels are "positive", "negative", "neutral" (lowercase)
-                    scores = {item["label"].lower(): item["score"] for item in items if isinstance(item, dict)}
-                    positive = scores.get("positive", 0.5)
-                    negative = scores.get("negative", 0.5)
-                    confidence = positive - negative
-                    normalized = (confidence + 1) / 2
-                    print(f"FinBERT: positive={positive:.3f}, negative={negative:.3f}, SCS_raw={normalized:.3f}")
-                    return normalized
-
-            elif response.status_code == 503:
-                print(f"FinBERT model loading, waiting 20s... (attempt {attempt + 1})")
-                time.sleep(20)
-                continue
-
-            else:
-                print(f"FinBERT error {response.status_code}: {response.text[:300]}")
-                time.sleep(5)
-
-        except Exception as e:
-            print(f"FinBERT exception (attempt {attempt + 1}): {e}")
-            time.sleep(5)
-
-    print("FinBERT: all retries failed, returning fallback 0.5")
-    return 0.5
+    blended = (vader_compound * 0.6) + (domain_boost * 0.4)
+    normalized = (blended + 1) / 2
+    print(f"Sentiment: vader={vader_compound:.3f}, domain_boost={domain_boost:.3f}, normalized={normalized:.3f}")
+    return normalized
 
 def compute_stated_confidence(text):
+    if not text or len(text.strip()) < 50:
+        print("SCS: text too short, returning fallback 50.0")
+        return 50.0
     hedging_density = count_hedging_phrases(text)
-    finbert_score = get_finbert_sentiment(text)
+    sentiment_score = get_financial_sentiment(text)
     hedging_penalty = min(hedging_density / 10, 0.5)
-    scs = finbert_score - hedging_penalty
-    print(f"SCS: finbert={finbert_score:.3f}, hedging={hedging_density:.2f}, penalty={hedging_penalty:.3f}, final={scs*100:.1f}")
-    return max(0, min(100, scs * 100))
+    scs = sentiment_score - hedging_penalty
+    result = max(0, min(100, scs * 100))
+    print(f"SCS: sentiment={sentiment_score:.3f}, hedging={hedging_density:.2f}, penalty={hedging_penalty:.3f}, final={result:.1f}")
+    return result
