@@ -2,7 +2,7 @@
 
 **A live NLP system that detects divergence between what major institutions say publicly and what behavioral signals around them show.**
 
-🔴 [Live Dashboard](https://institutional-confidence-index.vercel.app/landing) | 📡 [API](https://institutional-confidence-index.onrender.com/docs)
+🔴 Link to the webapp: https://institutional-confidence-index.vercel.app/landing 
 
 ---
 
