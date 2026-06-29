@@ -69,6 +69,26 @@ def get_signals(institution_id: int):
     data = supabase.table("raw_signals")        .select("source, content, sentiment_score, created_at")        .eq("institution_id", institution_id)        .gte("created_at", cutoff)        .order("created_at", desc=True)        .limit(10)        .execute().data
     return data
 
+
+@app.get("/stats")
+def get_stats():
+    """Return live counts for the landing page stats bar."""
+    from database import supabase
+    try:
+        inst_count = len(get_institutions())
+        scores_count = supabase.table("ici_scores").select("id", count="exact").execute().count
+        signals_count = supabase.table("raw_signals").select("id", count="exact").execute().count
+        alerts_count = supabase.table("alert_history").select("id", count="exact").execute().count
+        return {
+            "institutions": inst_count,
+            "ici_scores": scores_count or 0,
+            "raw_signals": signals_count or 0,
+            "alerts": alerts_count or 0,
+        }
+    except Exception as e:
+        print(f"Stats error: {e}")
+        return {"institutions": 0, "ici_scores": 0, "raw_signals": 0, "alerts": 0}
+
 @app.get("/latest")
 def get_latest_scores():
     """Return the single most recent ICI score for every institution."""
