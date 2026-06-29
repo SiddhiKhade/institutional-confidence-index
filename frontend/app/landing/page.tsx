@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import axios from "axios";
+
+const API_URL = "https://institutional-confidence-index.onrender.com";
 
 const TICKER_DATA = [
   { name: "CDC",             div: "+26.6", z: "2.68",  alert: true  },
@@ -114,6 +117,24 @@ function Counter({ target, suffix = "" }: { target: number; suffix?: string }) {
 export default function Landing() {
   const allTicker = [...TICKER_DATA, ...TICKER_DATA];
   const [menuOpen, setMenuOpen] = useState(false);
+  const [stats, setStats] = useState({ institutions: 9, ici_scores: 0, raw_signals: 0, alerts: 0 });
+  const [liveInstitutions, setLiveInstitutions] = useState(INSTITUTIONS);
+
+  useEffect(() => {
+    // Fetch live stats
+    axios.get(`${API_URL}/stats`).then(r => setStats(r.data)).catch(() => {});
+    // Fetch live institution scores
+    axios.get(`${API_URL}/latest`).then(r => {
+      if (r.data && r.data.length > 0) {
+        setLiveInstitutions(r.data.map((inst: {name:string; sector:string; zscore:number; alert?:boolean}) => ({
+          name: inst.name,
+          sector: inst.sector,
+          z: inst.zscore,
+          alert: Math.abs(inst.zscore) > 2,
+        })));
+      }
+    }).catch(() => {});
+  }, []);
 
   return (
     <div className="bg-gray-950 text-white overflow-x-hidden">
@@ -211,13 +232,13 @@ export default function Landing() {
       <div className="border-y border-white/5 bg-white/2">
         <div className="max-w-4xl mx-auto px-4 sm:px-8 py-10 sm:py-12 grid grid-cols-3 gap-4 sm:gap-8 text-center">
           {[
-            { target: 9,   suffix: "",   label: "Institutions tracked" },
-            { target: 100, suffix: "k+", label: "ICI scores computed" },
-            { target: 1.5, suffix: "M+", label: "Raw signals processed" },
+            { value: stats.institutions, label: "Institutions tracked" },
+            { value: stats.ici_scores,   label: "ICI scores computed" },
+            { value: stats.raw_signals,  label: "Raw signals processed" },
           ].map((s) => (
             <FadeIn key={s.label}>
               <div className="text-2xl sm:text-4xl font-semibold text-white mb-1">
-                <Counter target={s.target} suffix={s.suffix} />
+                {s.value > 0 ? s.value.toLocaleString() : "—"}
               </div>
               <div className="text-xs sm:text-sm text-gray-500">{s.label}</div>
             </FadeIn>
@@ -295,7 +316,7 @@ export default function Landing() {
           <FadeIn><p className="text-gray-400 leading-relaxed max-w-lg mb-10 sm:mb-12 text-sm sm:text-base">Nine major institutions across banking, finance, government, and education — plus any orgs you add on the dashboard.</p></FadeIn>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {INSTITUTIONS.map((inst, i) => {
+            {liveInstitutions.map((inst, i) => {
               const zCls = Math.abs(inst.z) > 2 ? "text-red-400" : Math.abs(inst.z) > 1.5 ? "text-yellow-400" : "text-emerald-400";
               const sign = inst.z > 0 ? "+" : "";
               return (
